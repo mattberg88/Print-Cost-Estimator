@@ -214,7 +214,10 @@ select:focus, input:focus { outline: 2px solid var(--gold); outline-offset: 0; b
 .min-note strong { color: var(--ink); }
 .compare-wrap.is-loading .price { opacity: 0.45; transition: opacity 0.1s; }
 @media (max-width: 640px) {
-  .header-nav > a:first-child { display: none; }
-  .header-nav { gap: 14px; }
+    .header-nav { gap: 14px; }
   .admin-menu { padding-left: 14px; }
 }
+
+.brand { display: flex; align-items: center; }
+.brand img { display: block; height: 40px; width: auto; }
+@media (max-width: 640px) { .brand img { height: 32px; } }

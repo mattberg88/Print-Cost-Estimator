@@ -7,14 +7,17 @@ export default function Home() {
     <AdminProvider>
       <header className="site-header">
         <div className="wrap header-inner">
-          <a className="wordmark" href="https://www.artifactory3d.com/" aria-label="Artifactory3D home">
-            Artifactory<sup>3D</sup>
+          <a className="brand" href="https://www.artifactory3d.com/" aria-label="Artifactory3D home">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="https://www.artifactory3d.com/wp-content/uploads/sites/11/2019/06/Artifactory3d_Logo.png"
+              alt="Artifactory3D"
+              width={196}
+              height={45}
+            />
           </a>
           <nav className="header-nav">
             <a href="https://www.artifactory3d.com/">Home</a>
-            <a className="btn-outline" href="https://www.artifactory3d.com/contact/">
-              Get a Quote
-            </a>
             <AdminMenu />
           </nav>
         </div>
