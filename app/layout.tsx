@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Print Cost Estimator",
-  description: "Upload a 3D model and estimate its resin cost on popular resin printers.",
+  description: "Upload a 3D model and get SLA, PolyJet and FDM price estimates.",
 };
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1 };

@@ -13,7 +13,7 @@ export default function Home() {
           </span>
           <h1>Print Cost Estimator</h1>
         </div>
-        <p className="tagline">Drop in a model and see what it costs in resin on popular printers.</p>
+        <p className="tagline">Drop in a model to get SLA, PolyJet and FDM price estimates.</p>
       </header>
       <Estimator />
       <footer className="foot">
