@@ -2,36 +2,14 @@
 
 import { Canvas } from "@react-three/fiber";
 import { Bounds, Grid, OrbitControls } from "@react-three/drei";
-import { useMemo } from "react";
-import * as THREE from "three";
 import type { LoadedModel } from "@/lib/loadModel";
-import type { FitResult, Printer } from "@/lib/printers";
 
 interface Props {
   model: LoadedModel;
   scale: number; // file units -> mm
-  printer?: Printer;
-  fit?: FitResult;
 }
 
-function BuildVolume({ printer, fit }: { printer: Printer; fit?: FitResult }) {
-  const { x, y, z } = printer.build;
-  const edges = useMemo(() => new THREE.EdgesGeometry(new THREE.BoxGeometry(x, z, y)), [x, y, z]);
-  const color = fit === "fits" ? "#3fb98a" : fit === "rotate" ? "#e0a43a" : "#e5534b";
-  return (
-    <group>
-      <lineSegments geometry={edges} position={[0, z / 2, 0]}>
-        <lineBasicMaterial color={color} transparent opacity={0.85} />
-      </lineSegments>
-      <mesh rotation-x={-Math.PI / 2} position={[0, 0.05, 0]}>
-        <planeGeometry args={[x, y]} />
-        <meshBasicMaterial color={color} transparent opacity={0.08} side={THREE.DoubleSide} />
-      </mesh>
-    </group>
-  );
-}
-
-export default function ModelViewer({ model, scale, printer, fit }: Props) {
+export default function ModelViewer({ model, scale }: Props) {
   const maxDim = Math.max(model.size.x, model.size.y, model.size.z) * scale;
   return (
     <Canvas
@@ -49,8 +27,6 @@ export default function ModelViewer({ model, scale, printer, fit }: Props) {
           <meshStandardMaterial color="#8fb4ff" roughness={0.42} metalness={0.05} />
         </mesh>
       </Bounds>
-
-      {printer && <BuildVolume printer={printer} fit={fit} />}
 
       <Grid
         infiniteGrid
