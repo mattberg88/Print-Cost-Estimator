@@ -186,7 +186,7 @@ export default function Estimator() {
             )}
           </>
         ) : (
-          <p className="muted">Load a model to see its volume and quotes.</p>
+          <p className="muted">Upload a model to see its size and volume.</p>
         )}
 
         <h2>Settings</h2>

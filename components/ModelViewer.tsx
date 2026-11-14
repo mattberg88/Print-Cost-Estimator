@@ -24,7 +24,7 @@ export default function ModelViewer({ model, scale }: Props) {
 
       <Bounds key={`${model.id}-${scale}`} fit clip observe margin={1.5}>
         <mesh geometry={model.geometry} scale={scale}>
-          <meshStandardMaterial color="#8fb4ff" roughness={0.42} metalness={0.05} />
+          <meshStandardMaterial color="#ece7dc" roughness={0.55} metalness={0.05} />
         </mesh>
       </Bounds>
 
@@ -32,8 +32,8 @@ export default function ModelViewer({ model, scale }: Props) {
         infiniteGrid
         cellSize={maxDim > 400 ? 50 : 10}
         sectionSize={maxDim > 400 ? 250 : 50}
-        cellColor="#8a93a6"
-        sectionColor="#5d6680"
+        cellColor="#4a4a4a"
+        sectionColor="#6b6b6b"
         cellThickness={0.6}
         sectionThickness={1}
         fadeDistance={Math.max(600, maxDim * 6)}
