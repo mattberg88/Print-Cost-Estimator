@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ADMIN_COOKIE, ADMIN_MAX_AGE, adminConfigured, checkPassword, isAdmin, sessionToken } from "@/lib/auth";
+import { ADMIN_COOKIE, ADMIN_MAX_AGE, adminConfigured, checkCredentials, isAdmin, sessionToken } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -11,21 +11,24 @@ export async function GET(req: NextRequest) {
   );
 }
 
-/** Log in with { password }. */
+/** Log in with { username, password }. */
 export async function POST(req: NextRequest) {
   if (!adminConfigured()) {
     return NextResponse.json({ error: "Admin login isn't set up yet." }, { status: 503 });
   }
+  let username = "";
   let password = "";
   try {
-    password = String((await req.json())?.password ?? "");
+    const body = await req.json();
+    username = String(body?.username ?? "");
+    password = String(body?.password ?? "");
   } catch {
     /* empty body */
   }
-  if (!checkPassword(password)) {
+  if (!checkCredentials(username, password)) {
     // Small delay to slow down guessing.
     await new Promise((r) => setTimeout(r, 600));
-    return NextResponse.json({ error: "Incorrect password." }, { status: 401 });
+    return NextResponse.json({ error: "Incorrect username or password." }, { status: 401 });
   }
   const res = NextResponse.json({ admin: true });
   res.cookies.set(ADMIN_COOKIE, sessionToken(), {
