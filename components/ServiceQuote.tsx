@@ -71,7 +71,18 @@ export default function ServiceQuote({ geometry }: Props) {
     { label: "Material", get: (id) => fmt(item(quotes?.[id] ?? null, "Material")), detail: true },
     { label: "Support", get: (id) => fmt(item(quotes?.[id] ?? null, "Support")), detail: true },
     { label: "Build time", get: (id) => fmt(item(quotes?.[id] ?? null, "Build time")), detail: true },
-    { label: "Service charge", get: (id) => fmt(serviceCharge(quotes?.[id] ?? null)), detail: true },
+    {
+      label: "Markup & adjustments",
+      get: (id) => {
+        const q = quotes?.[id] ?? null;
+        const charge = serviceCharge(q);
+        if (!q || charge === null) return "—";
+        const base = q.perPart - charge;
+        const factor = base > 0 ? q.perPart / base : 1;
+        return `${usd.format(charge)} (×${Number(factor.toFixed(2))})`;
+      },
+      detail: true,
+    },
     { label: "Price per part", get: (id) => fmt(quotes?.[id]?.perPart ?? null), detail: true, strong: true },
   ];
 
@@ -228,7 +239,7 @@ export default function ServiceQuote({ geometry }: Props) {
         </button>
         <p className="muted small">
           {geometry
-            ? `Estimates for the whole order${useMinimum ? "" : ", before any minimum order charge"}. The breakdown is per part; the service charge covers markup, turnaround and part-size adjustments. PolyJet support is estimated from the model.`
+            ? `Estimates for the whole order${useMinimum ? "" : ", before any minimum order charge"}. The breakdown is per part; markup & adjustments shows the dollar amount added and the overall multiplier (markup × turnaround × part-size adjustment). PolyJet support is estimated from the model.`
             : "Upload a model to see prices."}
         </p>
       </div>
