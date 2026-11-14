@@ -188,3 +188,5 @@ select:focus, input:focus { outline: 2px solid var(--gold); outline-offset: 0; b
 .link-btn:hover { text-decoration: underline; }
 
 .foot { margin: 28px auto 36px; text-align: center; color: var(--muted); font-size: 13px; }
+.detail-row.strong td { font-weight: 700; color: var(--ink); }
+.detail-row.strong .rowhead { color: var(--ink); }
