@@ -1,8 +1,10 @@
+import AdminMenu from "@/components/AdminMenu";
+import { AdminProvider } from "@/components/AdminContext";
 import Estimator from "@/components/Estimator";
 
 export default function Home() {
   return (
-    <>
+    <AdminProvider>
       <header className="site-header">
         <div className="wrap header-inner">
           <a className="wordmark" href="https://www.artifactory3d.com/" aria-label="Artifactory3D home">
@@ -13,6 +15,7 @@ export default function Home() {
             <a className="btn-outline" href="https://www.artifactory3d.com/contact/">
               Get a Quote
             </a>
+            <AdminMenu />
           </nav>
         </div>
       </header>
@@ -32,6 +35,6 @@ export default function Home() {
         Estimates only. Your file is processed in your browser and never uploaded. For a final quote,{" "}
         <a href="https://www.artifactory3d.com/contact/">contact Artifactory3D</a>.
       </footer>
-    </>
+    </AdminProvider>
   );
 }
