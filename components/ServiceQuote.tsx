@@ -1,90 +1,108 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  FDM,
+  FDM_MATERIALS,
   MINIMUM_ORDER,
-  POLYJET,
-  PRODUCTION_TIMES,
-  SLA,
-  applyMinimum,
-  quoteFDM,
-  quotePolyJet,
-  quoteSLA,
-  type Quote,
-  type QuoteInput,
-} from "@/lib/quote";
+  POLYJET_LAYER,
+  POLYJET_MATERIALS,
+  SLA_DEFAULT_LAYER,
+  SLA_LAYERS,
+  SLA_RESINS,
+  TURNAROUNDS,
+  type Breakdown,
+  type ProcessId,
+  type QuoteRequest,
+  type QuoteResponse,
+} from "@/lib/options";
+import { useAdmin } from "./AdminContext";
 
 const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+const fmt = (v: number | null | undefined) => (v === null || v === undefined ? "—" : usd.format(v));
 
 interface Props {
-  geometry: Omit<QuoteInput, "quantity" | "productionTime"> | null;
+  geometry: Pick<QuoteRequest, "volume" | "area" | "size" | "supportVolume"> | null;
 }
 
-type ProcessId = "sla" | "polyjet" | "fdm";
 const PROCESSES: { id: ProcessId; name: string; blurb: string }[] = [
   { id: "sla", name: "SLA", blurb: "Smooth, fine detail" },
   { id: "polyjet", name: "PolyJet", blurb: "Multi-material, very fine layers" },
   { id: "fdm", name: "FDM", blurb: "Strong, economical parts" },
 ];
 
-/** Value of a named line item, or null if the process doesn't have it. */
-function item(q: Quote | null, label: string) {
-  const it = q?.items.find((i) => i.label === label || (label === "Material" && i.label === "Resin"));
-  return it ? it.value : null;
-}
+const BREAKDOWN_ROWS: { label: string; get: (b: Breakdown) => string; strong?: boolean }[] = [
+  { label: "Setup", get: (b) => fmt(b.setup) },
+  { label: "Material", get: (b) => fmt(b.material) },
+  { label: "Support", get: (b) => fmt(b.support) },
+  { label: "Build time", get: (b) => fmt(b.buildTime) },
+  { label: "Markup & adjustments", get: (b) => `${fmt(b.markup)} (×${Number(b.markupFactor.toFixed(2))})` },
+  { label: "Minimum order adjustment", get: (b) => (b.minimumAdjustment > 0.005 ? fmt(b.minimumAdjustment) : "—") },
+];
 
 export default function ServiceQuote({ geometry }: Props) {
+  const { admin } = useAdmin();
   const [quantity, setQuantity] = useState(1);
-  const [prodId, setProdId] = useState<string>(PRODUCTION_TIMES[0].id);
-  const [slaResin, setSlaResin] = useState(SLA.resins[0].id);
-  const [slaLayer, setSlaLayer] = useState(SLA.defaultLayer);
-  const [pjMat, setPjMat] = useState(POLYJET.materials[0].id);
-  const [fdmMat, setFdmMat] = useState(FDM.materials[0].id);
-  const [useMinimum, setUseMinimum] = useState(false);
-  const [showDetails, setShowDetails] = useState(false);
+  const [turnaround, setTurnaround] = useState<string>(TURNAROUNDS[0].id);
+  const [slaResin, setSlaResin] = useState<string>(SLA_RESINS[0].id);
+  const [slaLayer, setSlaLayer] = useState<number>(SLA_DEFAULT_LAYER);
+  const [pjMat, setPjMat] = useState<string>(POLYJET_MATERIALS[0].id);
+  const [fdmMat, setFdmMat] = useState<string>(FDM_MATERIALS[0].id);
+  const [data, setData] = useState<QuoteResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showDetails, setShowDetails] = useState(true);
 
-  const productionTime = PRODUCTION_TIMES.find((p) => p.id === prodId)!.factor;
   const qty = Math.max(1, Math.floor(quantity) || 1);
 
-  const quotes = useMemo<Record<ProcessId, Quote> | null>(() => {
-    if (!geometry || geometry.volume <= 0) return null;
-    const input: QuoteInput = { ...geometry, quantity: qty, productionTime };
-    const min = (q: Quote) => (useMinimum ? applyMinimum(q, qty) : q);
-    return {
-      sla: min(quoteSLA(input, SLA.resins.find((r) => r.id === slaResin)!.costPerMm3, slaLayer)),
-      polyjet: min(quotePolyJet(input, POLYJET.materials.find((m) => m.id === pjMat)!.costPerMm3)),
-      fdm: min(quoteFDM(input, FDM.materials.find((m) => m.id === fdmMat)!)),
+  useEffect(() => {
+    if (!geometry || geometry.volume <= 0) {
+      setData(null);
+      return;
+    }
+    const ctrl = new AbortController();
+    const body: QuoteRequest = {
+      ...geometry,
+      quantity: qty,
+      turnaround,
+      slaResin,
+      slaLayer,
+      polyjetMaterial: pjMat,
+      fdmMaterial: fdmMat,
     };
-  }, [geometry, qty, productionTime, slaResin, slaLayer, pjMat, fdmMat, useMinimum]);
+    setLoading(true);
+    const t = setTimeout(() => {
+      fetch("/api/quote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: ctrl.signal,
+      })
+        .then(async (r) => {
+          if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error || "Couldn't get a price.");
+          return r.json() as Promise<QuoteResponse>;
+        })
+        .then((d) => {
+          setData(d);
+          setError(null);
+        })
+        .catch((e) => {
+          if (e.name !== "AbortError") setError(e.message || "Couldn't get a price.");
+        })
+        .finally(() => !ctrl.signal.aborted && setLoading(false));
+    }, 150);
+    return () => {
+      clearTimeout(t);
+      ctrl.abort();
+    };
+  }, [geometry, qty, turnaround, slaResin, slaLayer, pjMat, fdmMat, admin]);
 
+  const quotes = data?.quotes ?? null;
+  const isAdmin = admin && !!data?.admin;
   const lowest = quotes
     ? (Object.keys(quotes) as ProcessId[]).reduce((a, b) => (quotes[a].total <= quotes[b].total ? a : b))
     : null;
-
-  /** Everything the price adds on top of the base costs (markup, turnaround, part adjustments, minimum), per part. */
-  const serviceCharge = (q: Quote | null) =>
-    q ? q.perPart - q.items.reduce((s, x) => s + x.value, 0) : null;
-
-  const rows: { label: string; get: (id: ProcessId) => string; detail?: boolean; strong?: boolean }[] = [
-    { label: "Setup", get: (id) => fmt(item(quotes?.[id] ?? null, "Setup")), detail: true },
-    { label: "Material", get: (id) => fmt(item(quotes?.[id] ?? null, "Material")), detail: true },
-    { label: "Support", get: (id) => fmt(item(quotes?.[id] ?? null, "Support")), detail: true },
-    { label: "Build time", get: (id) => fmt(item(quotes?.[id] ?? null, "Build time")), detail: true },
-    {
-      label: "Markup & adjustments",
-      get: (id) => {
-        const q = quotes?.[id] ?? null;
-        const charge = serviceCharge(q);
-        if (!q || charge === null) return "—";
-        const base = q.perPart - charge;
-        const factor = base > 0 ? q.perPart / base : 1;
-        return `${usd.format(charge)} (×${Number(factor.toFixed(2))})`;
-      },
-      detail: true,
-    },
-    { label: "Price per part", get: (id) => fmt(quotes?.[id]?.perPart ?? null), detail: true, strong: true },
-  ];
+  const allAtMinimum = quotes ? PROCESSES.every((p) => quotes[p.id].minimumApplied) : false;
+  const best = (id: ProcessId) => (lowest === id && !allAtMinimum ? "best" : "");
 
   return (
     <section className="card quote-section" aria-labelledby="quote-h">
@@ -117,39 +135,37 @@ export default function ServiceQuote({ geometry }: Props) {
         <div className="field">
           <span className="field-label">Turnaround</span>
           <div className="segmented" role="radiogroup" aria-label="Turnaround">
-            {PRODUCTION_TIMES.map((p) => (
+            {TURNAROUNDS.map((p) => (
               <button
                 key={p.id}
                 type="button"
                 role="radio"
-                aria-checked={prodId === p.id}
-                className={prodId === p.id ? "on" : ""}
-                onClick={() => setProdId(p.id)}
+                aria-checked={turnaround === p.id}
+                className={turnaround === p.id ? "on" : ""}
+                onClick={() => setTurnaround(p.id)}
               >
-                {p.label.replace(" (2–3 days)", "")}
-                <small>{p.id === "standard" ? "2–3 days" : `×${p.factor}`}</small>
+                {p.label}
+                <small>{p.note}</small>
               </button>
             ))}
           </div>
         </div>
 
-        <label className="toggle">
-          <input type="checkbox" checked={useMinimum} onChange={(e) => setUseMinimum(e.target.checked)} />
-          <span className="track" aria-hidden />
-          <span>${MINIMUM_ORDER} minimum order</span>
-        </label>
+        <div className="min-note">
+          <strong>${MINIMUM_ORDER}</strong> minimum order
+        </div>
       </div>
 
-      <div className="compare-wrap">
+      <div className={`compare-wrap ${loading ? "is-loading" : ""}`}>
         <table className="compare">
           <thead>
             <tr>
               <th scope="col" className="rowhead" />
               {PROCESSES.map((p) => (
-                <th scope="col" key={p.id} className={lowest === p.id ? "best" : ""}>
+                <th scope="col" key={p.id} className={best(p.id)}>
                   <div className="proc-name">
                     {p.name}
-                    {lowest === p.id && <span className="badge">Lowest</span>}
+                    {best(p.id) && <span className="badge">Lowest</span>}
                   </div>
                   <div className="proc-blurb">{p.blurb}</div>
                 </th>
@@ -161,38 +177,42 @@ export default function ServiceQuote({ geometry }: Props) {
               <th scope="row" className="rowhead">
                 Total{qty > 1 ? ` (${qty} parts)` : ""}
               </th>
-              {PROCESSES.map((p) => (
-                <td key={p.id} className={lowest === p.id ? "best" : ""}>
-                  <div className="price">{quotes ? usd.format(quotes[p.id].total) : "—"}</div>
-                  {quotes && qty > 1 && <div className="each">{usd.format(quotes[p.id].perPart)} each</div>}
-                </td>
-              ))}
+              {PROCESSES.map((p) => {
+                const q = quotes?.[p.id];
+                return (
+                  <td key={p.id} className={best(p.id)}>
+                    <div className="price">{q ? usd.format(q.total) : "—"}</div>
+                    {q && qty > 1 && <div className="each">{usd.format(q.perPart)} each</div>}
+                    {q?.minimumApplied && <div className="each">Minimum order</div>}
+                  </td>
+                );
+              })}
             </tr>
             <tr>
               <th scope="row" className="rowhead">
                 Material
               </th>
-              <td className={lowest === "sla" ? "best" : ""}>
+              <td className={best("sla")}>
                 <select value={slaResin} onChange={(e) => setSlaResin(e.target.value)} aria-label="SLA resin">
-                  {SLA.resins.map((r) => (
+                  {SLA_RESINS.map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.label}
                     </option>
                   ))}
                 </select>
               </td>
-              <td className={lowest === "polyjet" ? "best" : ""}>
+              <td className={best("polyjet")}>
                 <select value={pjMat} onChange={(e) => setPjMat(e.target.value)} aria-label="PolyJet material">
-                  {POLYJET.materials.map((m) => (
+                  {POLYJET_MATERIALS.map((m) => (
                     <option key={m.id} value={m.id}>
                       {m.label}
                     </option>
                   ))}
                 </select>
               </td>
-              <td className={lowest === "fdm" ? "best" : ""}>
+              <td className={best("fdm")}>
                 <select value={fdmMat} onChange={(e) => setFdmMat(e.target.value)} aria-label="FDM material">
-                  {FDM.materials.map((m) => (
+                  {FDM_MATERIALS.map((m) => (
                     <option key={m.id} value={m.id}>
                       {m.label}
                     </option>
@@ -204,49 +224,72 @@ export default function ServiceQuote({ geometry }: Props) {
               <th scope="row" className="rowhead">
                 Layer height
               </th>
-              <td className={lowest === "sla" ? "best" : ""}>
+              <td className={best("sla")}>
                 <select value={slaLayer} onChange={(e) => setSlaLayer(Number(e.target.value))} aria-label="SLA layer height">
-                  {SLA.layerHeights.map((l) => (
+                  {SLA_LAYERS.map((l) => (
                     <option key={l} value={l}>
                       {l} mm
                     </option>
                   ))}
                 </select>
               </td>
-              <td className={`fixed ${lowest === "polyjet" ? "best" : ""}`}>{POLYJET.layerHeight} mm</td>
-              <td className={`fixed ${lowest === "fdm" ? "best" : ""}`}>—</td>
+              <td className={`fixed ${best("polyjet")}`}>{POLYJET_LAYER} mm</td>
+              <td className={`fixed ${best("fdm")}`}>—</td>
             </tr>
-            {showDetails &&
-              rows.map((r) => (
-                <tr key={r.label} className={`detail-row${r.strong ? " strong" : ""}`}>
+            {isAdmin && showDetails && quotes && (
+              <>
+                <tr className="admin-divider">
+                  <th scope="row" colSpan={4}>
+                    <span className="admin-badge">Admin</span> Cost breakdown (per part)
+                  </th>
+                </tr>
+                {BREAKDOWN_ROWS.map((r) => (
+                  <tr key={r.label} className="detail-row">
+                    <th scope="row" className="rowhead">
+                      {r.label}
+                    </th>
+                    {PROCESSES.map((p) => {
+                      const b = quotes[p.id].breakdown;
+                      return (
+                        <td key={p.id} className={best(p.id)}>
+                          {b ? r.get(b) : "—"}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+                <tr className="detail-row strong">
                   <th scope="row" className="rowhead">
-                    {r.label}
+                    Price per part
                   </th>
                   {PROCESSES.map((p) => (
-                    <td key={p.id} className={lowest === p.id ? "best" : ""}>
-                      {quotes ? r.get(p.id) : "—"}
+                    <td key={p.id} className={best(p.id)}>
+                      {usd.format(quotes[p.id].perPart)}
                     </td>
                   ))}
                 </tr>
-              ))}
+              </>
+            )}
           </tbody>
         </table>
       </div>
 
       <div className="quote-foot">
-        <button type="button" className="link-btn" onClick={() => setShowDetails((s) => !s)} aria-expanded={showDetails}>
-          {showDetails ? "Hide cost breakdown" : "Show cost breakdown"}
-        </button>
+        {isAdmin ? (
+          <button type="button" className="link-btn" onClick={() => setShowDetails((s) => !s)} aria-expanded={showDetails}>
+            {showDetails ? "Hide cost breakdown" : "Show cost breakdown"}
+          </button>
+        ) : (
+          <span />
+        )}
         <p className="muted small">
-          {geometry
-            ? `Estimates for the whole order${useMinimum ? "" : ", before any minimum order charge"}. The breakdown is per part; markup & adjustments shows the dollar amount added and the overall multiplier (markup × turnaround × part-size adjustment). PolyJet support is estimated from the model.`
-            : "Upload a model to see prices."}
+          {error
+            ? error
+            : geometry
+              ? `Estimated price for the whole order, including the $${MINIMUM_ORDER} minimum. Final pricing is confirmed when you order.`
+              : "Upload a model to see prices."}
         </p>
       </div>
     </section>
   );
-}
-
-function fmt(v: number | null) {
-  return v === null ? "—" : usd.format(v);
 }
