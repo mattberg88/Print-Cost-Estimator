@@ -5,7 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 interface AdminState {
   admin: boolean;
   configured: boolean;
-  login: (password: string) => Promise<string | null>; // returns an error message or null
+  login: (username: string, password: string) => Promise<string | null>; // returns an error message or null
   logout: () => Promise<void>;
 }
 
@@ -30,12 +30,12 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       .catch(() => {});
   }, []);
 
-  const login = useCallback(async (password: string) => {
+  const login = useCallback(async (username: string, password: string) => {
     try {
       const r = await fetch("/api/admin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ username, password }),
       });
       const d = await r.json();
       if (!r.ok) return d.error || "Login failed.";

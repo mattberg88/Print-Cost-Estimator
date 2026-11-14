@@ -6,6 +6,7 @@ import { useAdmin } from "./AdminContext";
 export default function AdminMenu() {
   const { admin, configured, login, logout } = useAdmin();
   const [open, setOpen] = useState(false);
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -40,7 +41,7 @@ export default function AdminMenu() {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const err = await login(password);
+    const err = await login(username, password);
     setBusy(false);
     if (err) setError(err);
     else {
@@ -56,19 +57,30 @@ export default function AdminMenu() {
       </button>
       {open && (
         <form className="admin-pop" onSubmit={submit}>
-          <label htmlFor="admin-pw">Admin password</label>
+          <label htmlFor="admin-user">Username</label>
+          <input
+            id="admin-user"
+            type="text"
+            autoComplete="username"
+            autoCapitalize="none"
+            spellCheck={false}
+            autoFocus
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            disabled={!configured || busy}
+          />
+          <label htmlFor="admin-pw">Password</label>
           <input
             id="admin-pw"
             type="password"
             autoComplete="current-password"
-            autoFocus
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             disabled={!configured || busy}
           />
           {!configured && <p className="admin-err">Admin login isn&apos;t set up yet.</p>}
           {error && <p className="admin-err">{error}</p>}
-          <button type="submit" className="btn-gold" disabled={!configured || busy || !password}>
+          <button type="submit" className="btn-gold" disabled={!configured || busy || !password || !username}>
             {busy ? "Checking…" : "Log in"}
           </button>
         </form>
