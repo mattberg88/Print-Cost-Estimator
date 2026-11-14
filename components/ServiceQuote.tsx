@@ -62,22 +62,17 @@ export default function ServiceQuote({ geometry }: Props) {
     ? (Object.keys(quotes) as ProcessId[]).reduce((a, b) => (quotes[a].total <= quotes[b].total ? a : b))
     : null;
 
-  const multiplier = (q: Quote | null) =>
-    q ? q.multipliers.reduce((m, x) => m * x.value, 1) : null;
+  /** Everything the price adds on top of the base costs (markup, turnaround, part adjustments, minimum), per part. */
+  const serviceCharge = (q: Quote | null) =>
+    q ? q.perPart - q.items.reduce((s, x) => s + x.value, 0) : null;
 
-  const rows: { label: string; get: (id: ProcessId) => string; detail?: boolean }[] = [
+  const rows: { label: string; get: (id: ProcessId) => string; detail?: boolean; strong?: boolean }[] = [
     { label: "Setup", get: (id) => fmt(item(quotes?.[id] ?? null, "Setup")), detail: true },
     { label: "Material", get: (id) => fmt(item(quotes?.[id] ?? null, "Material")), detail: true },
     { label: "Support", get: (id) => fmt(item(quotes?.[id] ?? null, "Support")), detail: true },
     { label: "Build time", get: (id) => fmt(item(quotes?.[id] ?? null, "Build time")), detail: true },
-    {
-      label: "Markup & adjustments",
-      get: (id) => {
-        const m = multiplier(quotes?.[id] ?? null);
-        return m === null ? "—" : `× ${Number(m.toFixed(3))}`;
-      },
-      detail: true,
-    },
+    { label: "Service charge", get: (id) => fmt(serviceCharge(quotes?.[id] ?? null)), detail: true },
+    { label: "Price per part", get: (id) => fmt(quotes?.[id]?.perPart ?? null), detail: true, strong: true },
   ];
 
   return (
@@ -212,7 +207,7 @@ export default function ServiceQuote({ geometry }: Props) {
             </tr>
             {showDetails &&
               rows.map((r) => (
-                <tr key={r.label} className="detail-row">
+                <tr key={r.label} className={`detail-row${r.strong ? " strong" : ""}`}>
                   <th scope="row" className="rowhead">
                     {r.label}
                   </th>
@@ -233,7 +228,7 @@ export default function ServiceQuote({ geometry }: Props) {
         </button>
         <p className="muted small">
           {geometry
-            ? `Estimates for the whole order${useMinimum ? "" : ", before any minimum order charge"}. Setup, material, support and build time are per part, before markup. PolyJet support is estimated from the model.`
+            ? `Estimates for the whole order${useMinimum ? "" : ", before any minimum order charge"}. The breakdown is per part; the service charge covers markup, turnaround and part-size adjustments. PolyJet support is estimated from the model.`
             : "Upload a model to see prices."}
         </p>
       </div>
