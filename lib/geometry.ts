@@ -47,6 +47,67 @@ export function surfaceArea(geo: THREE.BufferGeometry): number {
 }
 
 /**
+ * Estimates support volume with the part laid so its shortest bounding-box
+ * side is vertical ("z-minimised"). Builds a top-surface heightmap and
+ * returns (space under the top surface) − (part volume): the empty space
+ * beneath the part that support material would fill. Approximate.
+ */
+export function estimateSupportVolume(geo: THREE.BufferGeometry, partVolume: number, resolution = 220): number {
+  geo.computeBoundingBox();
+  const bb = geo.boundingBox!;
+  const ext = [bb.max.x - bb.min.x, bb.max.y - bb.min.y, bb.max.z - bb.min.z];
+  const mins = [bb.min.x, bb.min.y, bb.min.z];
+  const up = ext.indexOf(Math.min(...ext));
+  const [ua, va] = [0, 1, 2].filter((a) => a !== up);
+  const cell = Math.max(ext[ua], ext[va]) / resolution;
+  if (!(cell > 0)) return 0;
+  const nu = Math.max(1, Math.ceil(ext[ua] / cell));
+  const nv = Math.max(1, Math.ceil(ext[va] / cell));
+  const top = new Float32Array(nu * nv).fill(-1);
+  const pos = geo.getAttribute("position");
+  const P = [new Float64Array(3), new Float64Array(3), new Float64Array(3)];
+  const clampU = (x: number) => Math.min(nu - 1, Math.max(0, x));
+  const clampV = (x: number) => Math.min(nv - 1, Math.max(0, x));
+
+  forEachTriangle(geo, (i0, i1, i2) => {
+    [i0, i1, i2].forEach((idx, k) => {
+      const c = [pos.getX(idx), pos.getY(idx), pos.getZ(idx)];
+      P[k][0] = (c[ua] - mins[ua]) / cell;
+      P[k][1] = (c[va] - mins[va]) / cell;
+      P[k][2] = c[up] - mins[up];
+      // Splat vertices so tiny triangles still register.
+      const ci = clampV(Math.floor(P[k][1])) * nu + clampU(Math.floor(P[k][0]));
+      if (P[k][2] > top[ci]) top[ci] = P[k][2];
+    });
+    const [a, b, c] = P;
+    const det = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1]);
+    if (Math.abs(det) < 1e-12) return;
+    const u0 = clampU(Math.floor(Math.min(a[0], b[0], c[0])));
+    const u1 = clampU(Math.ceil(Math.max(a[0], b[0], c[0])));
+    const v0 = clampV(Math.floor(Math.min(a[1], b[1], c[1])));
+    const v1 = clampV(Math.ceil(Math.max(a[1], b[1], c[1])));
+    for (let v = v0; v <= v1; v++) {
+      const py = v + 0.5;
+      for (let u = u0; u <= u1; u++) {
+        const px = u + 0.5;
+        const w0 = ((b[1] - c[1]) * (px - c[0]) + (c[0] - b[0]) * (py - c[1])) / det;
+        const w1 = ((c[1] - a[1]) * (px - c[0]) + (a[0] - c[0]) * (py - c[1])) / det;
+        const w2 = 1 - w0 - w1;
+        if (w0 < 0 || w1 < 0 || w2 < 0) continue;
+        const h = w0 * a[2] + w1 * b[2] + w2 * c[2];
+        const ci = v * nu + u;
+        if (h > top[ci]) top[ci] = h;
+      }
+    }
+  });
+
+  let shadow = 0;
+  for (let i = 0; i < top.length; i++) if (top[i] > 0) shadow += top[i];
+  shadow *= cell * cell;
+  return Math.max(0, shadow - partVolume);
+}
+
+/**
  * Counts edges that aren't shared by exactly two triangles. Zero means the
  * mesh is closed (watertight), which is what makes the volume trustworthy.
  */

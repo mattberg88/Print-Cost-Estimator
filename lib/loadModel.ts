@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { badEdgeCount, signedVolume, surfaceArea } from "./geometry";
-import type { Unit } from "./printers";
+import { badEdgeCount, estimateSupportVolume, signedVolume, surfaceArea } from "./geometry";
+import type { Unit } from "./units";
 
 export const ACCEPTED_EXTENSIONS = ["stl", "obj", "3mf", "ply", "glb", "gltf"] as const;
 
@@ -15,6 +15,8 @@ export interface LoadedModel {
   volume: number;
   /** Surface area in file units². */
   area: number;
+  /** Estimated support volume (part laid at its lowest height), file units³. */
+  supportVolume: number;
   /** Bounding box size in file units (x = width, y = height, z = depth). */
   size: THREE.Vector3;
   triangles: number;
@@ -107,6 +109,7 @@ export function buildModel(
     geometry,
     volume,
     area,
+    supportVolume: estimateSupportVolume(geometry, volume),
     size: geometry.boundingBox!.getSize(new THREE.Vector3()),
     triangles: geometry.getAttribute("position").count / 3,
     parts: parts.length,
