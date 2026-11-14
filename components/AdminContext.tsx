@@ -7,6 +7,8 @@ interface AdminState {
   configured: boolean;
   login: (username: string, password: string) => Promise<string | null>; // returns an error message or null
   logout: () => Promise<void>;
+  /** Called when the server says this browser isn't an admin after all. */
+  markLoggedOut: () => void;
 }
 
 const Ctx = createContext<AdminState>({
@@ -14,6 +16,7 @@ const Ctx = createContext<AdminState>({
   configured: false,
   login: async () => "Not available",
   logout: async () => {},
+  markLoggedOut: () => {},
 });
 
 export function AdminProvider({ children }: { children: React.ReactNode }) {
@@ -39,6 +42,9 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       });
       const d = await r.json();
       if (!r.ok) return d.error || "Login failed.";
+      // Confirm the session cookie stuck before switching the UI to admin mode.
+      const check = await fetch("/api/admin", { cache: "no-store" }).then((x) => x.json());
+      if (!check.admin) return "Logged in, but your browser didn't keep the session. Allow cookies for this site and try again.";
       setAdmin(true);
       return null;
     } catch {
@@ -51,7 +57,9 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     setAdmin(false);
   }, []);
 
-  return <Ctx.Provider value={{ admin, configured, login, logout }}>{children}</Ctx.Provider>;
+  const markLoggedOut = useCallback(() => setAdmin(false), []);
+
+  return <Ctx.Provider value={{ admin, configured, login, logout, markLoggedOut }}>{children}</Ctx.Provider>;
 }
 
 export const useAdmin = () => useContext(Ctx);
