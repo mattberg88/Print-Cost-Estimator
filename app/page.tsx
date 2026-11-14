@@ -1,6 +1,6 @@
 import AdminMenu from "@/components/AdminMenu";
 import { AdminProvider } from "@/components/AdminContext";
-import Estimator from "@/components/Estimator";
+import QuoteApp from "@/components/QuoteApp";
 
 export default function Home() {
   return (
@@ -25,17 +25,17 @@ export default function Home() {
 
       <section className="hero">
         <div className="wrap">
-          <h1>Print Cost Estimator</h1>
-          <p>Upload a 3D model to get an instant SLA, PolyJet and FDM price estimate.</p>
+          <h1>Instant 3D printing quote</h1>
+          <p>Upload your parts, choose SLA, PolyJet or FDM, and see your price in seconds.</p>
         </div>
       </section>
 
       <main className="wrap main">
-        <Estimator />
+        <QuoteApp />
       </main>
 
       <footer className="wrap foot">
-        Estimates only. Your file is processed in your browser and never uploaded. For a final quote,{" "}
+        Estimates only. Your files are processed in your browser and never uploaded. For a final quote,{" "}
         <a href="https://www.artifactory3d.com/contact/">contact Artifactory3D</a>.
       </footer>
     </AdminProvider>
